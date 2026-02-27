@@ -11,49 +11,6 @@ terraform {
   }
 }
 
-variable "root_domain" {
-  description = "The root domain (e.g. regory.dev)"
-  type        = string
-}
-
-variable "subdomain" {
-  description = "The subdomain prefix (e.g. cancan). Use '@' for root."
-  type        = string
-  default     = "cancan"
-}
-
-variable "cloudflare_api_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "account_id" { type = string }
-variable "zone_id" { type = string }
-variable "project_name" { type = string }
-
-variable "github_token" {
-  description = "GitHub PAT with repo scope"
-  type        = string
-  sensitive   = true
-}
-
-variable "owner" {
-  description = "GitHub username or org (e.g. gcrois)"
-  type        = string
-}
-
-variable "repo_name" {
-  description = "GitHub repository name (e.g. gregory.croisdale)"
-  type        = string
-}
-
-variable "build_dir" {
-  description = "Directory containing the built site to deploy"
-  type        = string
-  default     = "./dist"
-}
-
-# --- Providers ---
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
@@ -63,7 +20,32 @@ provider "github" {
   owner = var.owner
 }
 
-# --- Cloudflare Resources ---
+# --- GitHub Repository ---
+resource "github_repository" "site_repo" {
+  name         = var.repo_name
+  description  = "Managed by Terraform: ${var.project_name}"
+  homepage_url = "https://${var.subdomain == "@" ? var.root_domain : "${var.subdomain}.${var.root_domain}"}"
+  visibility   = var.repo_visibility
+  auto_init    = true
+
+  lifecycle {
+    ignore_changes = [
+      allow_forking
+    ]
+  }
+}
+
+resource "null_resource" "git_remote_config" {
+  triggers = {
+    repo_url = github_repository.site_repo.ssh_clone_url
+  }
+
+  provisioner "local-exec" {
+    command = "git -C .. remote add origin ${github_repository.site_repo.ssh_clone_url} || git -C .. remote set-url origin ${github_repository.site_repo.ssh_clone_url}"
+  }
+}
+
+# --- Cloudflare Pages ---
 resource "cloudflare_pages_project" "static_site" {
   account_id        = var.account_id
   name              = var.project_name
@@ -84,34 +66,24 @@ resource "cloudflare_record" "site_dns" {
   proxied = true
 }
 
-resource "github_actions_secret" "cf_api_token" {
-  repository      = var.repo_name
-  secret_name     = "CLOUDFLARE_API_TOKEN"
-  plaintext_value = var.cloudflare_api_token
+# --- Automation Bridge (Secrets & Vars) ---
+resource "github_actions_secret" "secrets" {
+  for_each = {
+    CLOUDFLARE_API_TOKEN = var.cloudflare_api_token
+    CLOUDFLARE_ACCOUNT_ID = var.account_id
+  }
+  repository      = github_repository.site_repo.name
+  secret_name     = each.key
+  plaintext_value = each.value
 }
 
-resource "github_actions_secret" "cf_account_id" {
-  repository      = var.repo_name
-  secret_name     = "CLOUDFLARE_ACCOUNT_ID"
-  plaintext_value = var.account_id
-}
-
-resource "github_actions_variable" "cf_project_name" {
-  repository    = var.repo_name
-  variable_name = "CLOUDFLARE_PROJECT_NAME"
-  value         = var.project_name
-}
-
-resource "github_actions_variable" "cf_output_dir" {
-  repository    = var.repo_name
-  variable_name = "CLOUDFLARE_OUTPUT_DIR"
-  value         = var.build_dir
-}
-
-output "full_url" {
-  value = "https://${cloudflare_pages_domain.custom_domain.domain}"
-}
-
-output "deployment_command" {
-  value = "npx wrangler pages deploy ${var.build_dir} --project-name=${var.project_name}"
+resource "github_actions_variable" "configs" {
+  for_each = {
+    CLOUDFLARE_PROJECT_NAME = var.project_name
+    CLOUDFLARE_OUTPUT_DIR   = var.build_dir
+    VITE_PAGES_HOST         = cloudflare_pages_project.static_site.subdomain
+  }
+  repository    = github_repository.site_repo.name
+  variable_name = each.key
+  value         = each.value
 }
