@@ -40,10 +40,19 @@ variable "subdomain" {
 
 variable "build_dir" {
   type    = string
-  default = "./dist"
+  default = "./build/web"
 }
 
 variable "repo_visibility" {
   type    = string
   default = "public"
+}
+
+variable "itch_username" {
+  type = string
+}
+
+variable "itch_token" {
+  type      = string
+  sensitive = true
 }

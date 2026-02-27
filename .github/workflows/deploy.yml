@@ -24,25 +24,12 @@ jobs:
       - name: Export Web
         run: godot --headless --export-release "Web" build/web/index.html
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Deploy to itch.io
+        uses: Ayowel/butler-to-itch@v1.3.0
         with:
-          name: web-build
-          path: build/web
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-build
-          path: build/web
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/web --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
+          butler_key: ${{ secrets.ITCHIO_API_KEY }}
+          itch_user: ${{ vars.ITCH_USERNAME }}
+          itch_game: ${{ vars.ITCH_GAME_ID }}
+          version: ${{ github.sha }}
+          files: |
+            html5 build/web
