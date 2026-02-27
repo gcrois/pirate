@@ -1,5 +1,9 @@
-class_name ShipController
+class_name Actor
 extends Node3D
+
+@export var actor_name:   String = ""
+@export var actor_type:   String = "ship"   # "ship" or "surfboard"
+@export var is_ai:        bool   = false
 
 @export var max_speed:    float = 10.0
 @export var acceleration: float = 8.0
@@ -11,28 +15,50 @@ extends Node3D
 @export var slam_drag:      float = 0.4
 @export var slam_recover:   float = 3.0
 
-@export_category("Surfboard & AI")
-@export var is_surfboard: bool = false
-@export var is_ai: bool = false
+@export_category("Surfboard shape")
 @export var surfboard_half_length: float = 1.0
-@export var surfboard_half_width: float = 0.3
-@export var surfboard_draft: float = 0.1
+@export var surfboard_half_width:  float = 0.3
+@export var surfboard_draft:       float = 0.1
+
+@export_category("Island Anchor")
+@export var anchor_zone_scale: float = 1.45
+@export var anchor_hard_padding: float = 3.5
+@export var anchor_brake: float = 9.0
 
 @onready var _bow:       Marker3D = $Bow
 @onready var _stern:     Marker3D = $Stern
 @onready var _port:      Marker3D = $Port
 @onready var _starboard: Marker3D = $Starboard
 
-var _ocean:        Node
-var _current_drag: float = 1.0
-var _current_speed: float = 0.0   # signed, along -basis.z
+# Per-actor inventory & wallet
+var inventory: Dictionary = {}
+@export var max_inventory: int = 6
+@export var gold: int = 200
+
+var _ocean:         Node
+var _current_drag:  float = 1.0
+var _current_speed: float = 0.0
+var _anchor_factor: float = 1.0
 
 var _wake_controller: WakeController
 
-# Public — read by DebugOverlay and OceanManager
-var velocity: Vector3 = Vector3.ZERO
-var _prev_pos: Vector3
-var _wave_speed: float = 0.0   # smoothed speed
+# Public read by DebugOverlay / OceanManager
+var velocity:    Vector3 = Vector3.ZERO
+var _prev_pos:   Vector3
+var _wave_speed: float   = 0.0
+
+# Vertical physics
+const GRAVITY: float = 9.8
+var _vert_vel:  float = 0.0
+
+# Cached original ship mesh so we can restore after a surfboard switch
+var _orig_hull_mesh: Mesh     = null
+var _orig_hull_mat:  Material = null
+var _orig_bow_pos:   Vector3
+var _orig_stern_pos: Vector3
+var _orig_port_pos:  Vector3
+var _orig_star_pos:  Vector3
+
 
 ## Try every possible way to get a ShaderMaterial from a MeshInstance3D.
 static func _get_shader_material(mi: MeshInstance3D) -> ShaderMaterial:
@@ -48,37 +74,88 @@ static func _get_shader_material(mi: MeshInstance3D) -> ShaderMaterial:
 			return pm.material
 	return null
 
+
 func _ready() -> void:
 	add_to_group("ship")
 	_prev_pos = global_position
-	_ocean = get_tree().get_first_node_in_group("ocean")
+	_ocean    = get_tree().get_first_node_in_group("ocean")
+	if actor_name.is_empty():
+		actor_name = name
 
-	if is_surfboard:
-		_bow.position = Vector3(0, 0, -surfboard_half_length)
-		_stern.position = Vector3(0, 0, surfboard_half_length)
-		_port.position = Vector3(-surfboard_half_width, 0, 0)
-		_starboard.position = Vector3(surfboard_half_width, 0, 0)
-		max_speed = 8.0
-		turn_speed = 2.0
-		bob_lerp = 15.0
-		tilt_lerp = 10.0
-		
-		if has_node("Cabin"): $Cabin.hide()
-		if has_node("Mast"): $Mast.hide()
-		if has_node("Yard"): $Yard.hide()
-		if has_node("Sail"): $Sail.hide()
-		if has_node("Hull"):
-			$Hull.mesh = BoxMesh.new()
-			$Hull.mesh.size = Vector3(surfboard_half_width * 2.0, 0.2, surfboard_half_length * 2.0)
-			var mat = StandardMaterial3D.new()
-			mat.albedo_color = Color(0.9, 0.2, 0.2)
-			$Hull.material_override = mat
+	# Initialise per-actor inventory from the shared goods list
+	for good in Economy.GOODS:
+		inventory[good] = 0
+
+	# Cache original ship geometry so toggling back from surfboard works
+	if has_node("Hull"):
+		_orig_hull_mesh = $Hull.mesh
+		_orig_hull_mat  = $Hull.material_override
+	_orig_bow_pos   = _bow.position
+	_orig_stern_pos = _stern.position
+	_orig_port_pos  = _port.position
+	_orig_star_pos  = _starboard.position
+
+	_set_type(actor_type)
 
 	_wake_controller = WakeController.new()
 	add_child(_wake_controller)
 
+
+func _input(event: InputEvent) -> void:
+	if is_ai:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_S:
+			_toggle_type()
+
+
+func _toggle_type() -> void:
+	_set_type("surfboard" if actor_type == "ship" else "ship")
+
+
+func _set_type(type: String) -> void:
+	actor_type = type
+	if actor_type == "surfboard":
+		_bow.position       = Vector3(0, 0, -surfboard_half_length)
+		_stern.position     = Vector3(0, 0,  surfboard_half_length)
+		_port.position      = Vector3(-surfboard_half_width, 0, 0)
+		_starboard.position = Vector3( surfboard_half_width, 0, 0)
+		max_speed  = 8.0
+		turn_speed = 2.0
+		bob_lerp   = 15.0
+		tilt_lerp  = 10.0
+		if has_node("Cabin"): $Cabin.hide()
+		if has_node("Mast"):  $Mast.hide()
+		if has_node("Yard"):  $Yard.hide()
+		if has_node("Sail"):  $Sail.hide()
+		if has_node("Hull"):
+			var bm := BoxMesh.new()
+			bm.size = Vector3(surfboard_half_width * 2.0, 0.2, surfboard_half_length * 2.0)
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.9, 0.2, 0.2)
+			$Hull.mesh              = bm
+			$Hull.material_override = mat
+	else:  # "ship"
+		_bow.position       = _orig_bow_pos
+		_stern.position     = _orig_stern_pos
+		_port.position      = _orig_port_pos
+		_starboard.position = _orig_star_pos
+		max_speed  = 10.0
+		turn_speed = 1.5
+		bob_lerp   = 8.0
+		tilt_lerp  = 3.0
+		if has_node("Cabin"): $Cabin.show()
+		if has_node("Mast"):  $Mast.show()
+		if has_node("Yard"):  $Yard.show()
+		if has_node("Sail"):  $Sail.show()
+		if has_node("Hull") and _orig_hull_mesh != null:
+			$Hull.mesh              = _orig_hull_mesh
+			$Hull.material_override = _orig_hull_mat
+
+
 func _process(delta: float) -> void:
 	_handle_movement(delta)
+	_apply_island_anchor(delta)
 	_handle_buoyancy(delta)
 
 	velocity  = (global_position - _prev_pos) / delta
@@ -88,73 +165,193 @@ func _process(delta: float) -> void:
 	_wave_speed = lerp(_wave_speed, actual_spd, 4.0 * delta)
 
 	_update_wake(delta)
+	_update_crates()
+
+
+func total_inventory() -> int:
+	var n := 0
+	for v in inventory.values():
+		n += v
+	return n
+
+
+func can_buy() -> bool:
+	return total_inventory() < max_inventory
+
+
+func buy(good: String, price: int) -> bool:
+	if not inventory.has(good):
+		return false
+	if gold < price or not can_buy():
+		return false
+	gold -= price
+	inventory[good] += 1
+	return true
+
+
+func sell(good: String, price: int) -> bool:
+	if not inventory.has(good):
+		return false
+	if inventory.get(good, 0) <= 0:
+		return false
+	gold += price
+	inventory[good] -= 1
+	return true
+
+
+func _update_crates() -> void:
+	var total := total_inventory()
+	for i in range(1, 7):
+		var c := get_node_or_null("Crate%d" % i)
+		if c:
+			c.visible = i <= total
+
 
 func _handle_movement(delta: float) -> void:
+	_anchor_factor = _compute_anchor_factor()
+
+	# ── Developer free-fly override (Ctrl / Cmd held) ───────────────────────
 	if Input.is_physical_key_pressed(KEY_CTRL) or Input.is_physical_key_pressed(KEY_META):
-		var test_throttle := Input.get_axis("ui_down", "ui_up")
-		var test_steer := Input.get_axis("ui_right", "ui_left")
-		
-		if test_throttle != 0.0:
-			_current_speed += test_throttle * acceleration * delta * 2.0
+		var tt := 0.0
+		var ts := 0.0
+		if Input.is_physical_key_pressed(KEY_UP):    tt =  1.0
+		elif Input.is_physical_key_pressed(KEY_DOWN): tt = -1.0
+		if Input.is_physical_key_pressed(KEY_LEFT):  ts =  1.0
+		elif Input.is_physical_key_pressed(KEY_RIGHT): ts = -1.0
+
+		if tt != 0.0:
+			_current_speed += tt * acceleration * delta * 2.0
 		else:
 			_current_speed = move_toward(_current_speed, 0.0, deceleration * delta)
-			
-		if test_steer != 0.0:
-			global_position += transform.basis.x * test_steer * max_speed * delta
-			
+		if ts != 0.0:
+			global_position += transform.basis.x * ts * max_speed * delta
 		if abs(_current_speed) > 0.001:
 			global_position += -transform.basis.z * _current_speed * delta
 		return
 
-	var throttle := Input.get_axis("ui_down", "ui_up")
-	var steer := Input.get_axis("ui_right", "ui_left")
-	
+	# ── Normal movement ────────────────────────────────────────────────────
+	var throttle := 0.0
+	var steer    := 0.0
+
 	if is_ai:
 		throttle = 1.0
-		steer = 1.0
+		steer    = 1.0
+	else:
+		# S is reserved for type-toggle; reverse uses Down-arrow only
+		if   Input.is_physical_key_pressed(KEY_UP)    or Input.is_physical_key_pressed(KEY_W):
+			throttle =  1.0
+		elif Input.is_physical_key_pressed(KEY_DOWN):
+			throttle = -1.0
+		if   Input.is_physical_key_pressed(KEY_LEFT)  or Input.is_physical_key_pressed(KEY_A):
+			steer =  1.0
+		elif Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D):
+			steer = -1.0
 
-	var target := throttle * max_speed * _current_drag
+	var anchor_scale := _anchor_factor if throttle >= 0.0 else 1.0
+	var target := throttle * max_speed * _current_drag * anchor_scale
 	var rate   := acceleration if throttle != 0.0 else deceleration
 	_current_speed = move_toward(_current_speed, target, rate * delta)
+	if _anchor_factor < 1.0:
+		var brake := anchor_brake * (1.0 - _anchor_factor)
+		_current_speed = move_toward(_current_speed, 0.0, brake * delta)
 
 	if abs(_current_speed) > 0.001:
 		global_position += -transform.basis.z * _current_speed * delta
-
 	if steer != 0.0:
-		rotate_y(steer * turn_speed * delta)
+		rotate_y(steer * turn_speed * delta * lerp(0.4, 1.0, _anchor_factor))
+
+
+func _compute_anchor_factor() -> float:
+	var factor := 1.0
+	var pos_xz := Vector2(global_position.x, global_position.z)
+	var islands: Array = get_tree().get_nodes_in_group("island")
+	for n in islands:
+		if n is not Node3D:
+			continue
+		var island := n as Node3D
+		var radius: float = float(island.get("radius"))
+		var anchor_radius: float = radius * anchor_zone_scale
+		var center := Vector2(island.global_position.x, island.global_position.z)
+		var dist := pos_xz.distance_to(center)
+		if dist >= anchor_radius:
+			continue
+		var inner_span: float = max(anchor_radius - radius, 0.001)
+		var t: float = clamp((anchor_radius - dist) / inner_span, 0.0, 1.0)
+		factor = min(factor, lerp(1.0, 0.18, t))
+	return factor
+
+
+func _apply_island_anchor(delta: float) -> void:
+	var pos_xz := Vector2(global_position.x, global_position.z)
+	var islands: Array = get_tree().get_nodes_in_group("island")
+	var snapped := false
+	for n in islands:
+		if n is not Node3D:
+			continue
+		var island := n as Node3D
+		var radius: float = float(island.get("radius"))
+		var hard_radius := radius + anchor_hard_padding
+		var center := Vector2(island.global_position.x, island.global_position.z)
+		var from_center := pos_xz - center
+		var dist := from_center.length()
+		if dist >= hard_radius:
+			continue
+		var dir := Vector2.RIGHT if dist <= 0.001 else from_center / dist
+		pos_xz = center + dir * hard_radius
+		snapped = true
+
+	if snapped:
+		global_position.x = pos_xz.x
+		global_position.z = pos_xz.y
+		_current_speed = move_toward(_current_speed, 0.0, (anchor_brake * 2.0) * delta)
+
 
 func _handle_buoyancy(delta: float) -> void:
 	if _ocean == null or not _ocean.has_method("get_wave_height"):
+		_vert_vel -= GRAVITY * delta
+		global_position.y += _vert_vel * delta
 		return
 
-	var p_bow   = _bow.global_position;   p_bow.y = _ocean.get_wave_height(p_bow)
-	var p_stern = _stern.global_position; p_stern.y = _ocean.get_wave_height(p_stern)
-	var p_port  = _port.global_position;  p_port.y = _ocean.get_wave_height(p_port)
-	var p_star  = _starboard.global_position; p_star.y = _ocean.get_wave_height(p_star)
+	var p_bow   := _bow.global_position;        p_bow.y   = _ocean.get_wave_height(p_bow)
+	var p_stern := _stern.global_position;      p_stern.y = _ocean.get_wave_height(p_stern)
+	var p_port  := _port.global_position;       p_port.y  = _ocean.get_wave_height(p_port)
+	var p_star  := _starboard.global_position;  p_star.y  = _ocean.get_wave_height(p_star)
 
-	var avg_y: float = (p_bow.y + p_stern.y + p_port.y + p_star.y) * 0.25
-	var waterline_offset: float = 0.1 if is_surfboard else 0.4
-	global_position.y = lerp(global_position.y, avg_y + waterline_offset, bob_lerp * delta)
+	var avg_y:            float = (p_bow.y + p_stern.y + p_port.y + p_star.y) * 0.25
+	var waterline_offset: float = 0.1 if actor_type == "surfboard" else 0.4
+	var target_y          := avg_y + waterline_offset
 
-	var fwd_slope   = (p_bow - p_stern).normalized()
-	var right_slope = (p_star - p_port).normalized()
-	var target_up   = right_slope.cross(fwd_slope).normalized()
+	# Always apply reduced gravity
+	_vert_vel -= GRAVITY * delta
 
-	var new_up = transform.basis.y.lerp(target_up, tilt_lerp * delta).normalized()
-	var current_heading = -transform.basis.z
-	var new_right = current_heading.cross(new_up).normalized()
-	var final_fwd = new_up.cross(new_right).normalized()
+	if global_position.y < target_y:
+		# Submerged — spring pushes up; gentle water resistance keeps it stable
+		_vert_vel += (target_y - global_position.y) * bob_lerp * 2.5 * delta
+		_vert_vel  = lerp(_vert_vel, 0.0, 1.5 * delta)
 
+	global_position.y += _vert_vel * delta
+
+	# Tilt to match local wave surface normal
+	var fwd_slope   := (p_bow - p_stern).normalized()
+	var right_slope := (p_star - p_port).normalized()
+	var target_up   := right_slope.cross(fwd_slope).normalized()
+
+	var new_up    := transform.basis.y.lerp(target_up, tilt_lerp * delta).normalized()
+	var cur_hdg   := -transform.basis.z
+	var new_right := cur_hdg.cross(new_up).normalized()
+	var final_fwd := new_up.cross(new_right).normalized()
 	transform.basis = Basis(new_right, new_up, -final_fwd)
 
+	# Bow-slam drag
 	var bow_drop: float = p_bow.y - _bow.global_position.y
 	if bow_drop > slam_threshold:
 		_current_drag = slam_drag
 	else:
 		_current_drag = lerp(_current_drag, 1.0, slam_recover * delta)
 
+
 func _update_wake(_delta: float) -> void:
-	var h_len = surfboard_half_length if is_surfboard else 4.5
-	var h_wid = surfboard_half_width if is_surfboard else 1.75
-	var draft = surfboard_draft if is_surfboard else 1.0
+	var h_len := surfboard_half_length if actor_type == "surfboard" else 4.5
+	var h_wid := surfboard_half_width  if actor_type == "surfboard" else 1.75
+	var draft := surfboard_draft       if actor_type == "surfboard" else 1.0
 	_wake_controller.process_wake(global_position, transform.basis, velocity, _wave_speed, h_len, h_wid, draft)

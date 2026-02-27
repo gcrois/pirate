@@ -66,10 +66,8 @@ func process_wake(ship_position: Vector3, ship_basis: Basis, ship_velocity: Vect
 	
 	_feedback_mat.set_shader_parameter("movement_offset", Vector2(uv_offset_x, uv_offset_y))
 	
-	# Handle dynamic fade based on speed
-	# If speed is 0, we fade faster to eventually clear the patch.
-	# If moving fast, we fade slower to leave a trail.
-	var fade_bonus = lerp(0.04, 0.0, clamp(ship_speed / 5.0, 0.0, 1.0))
+	# Speed-adaptive fade: preserve more history at speed so turning creates curved trails.
+	var fade_bonus = lerp(0.026, 0.002, clamp(ship_speed / 6.0, 0.0, 1.0))
 	_feedback_mat.set_shader_parameter("dynamic_fade", fade_bonus)
 	
 	# 2. Update brush physics variables
@@ -89,4 +87,3 @@ func process_wake(ship_position: Vector3, ship_basis: Basis, ship_velocity: Vect
 	_brush_mat.set_shader_parameter("ship_draft", draft)
 	
 	_last_ship_pos = ship_position
-

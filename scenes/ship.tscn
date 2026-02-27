@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/ship_controller.gd" id="1_script"]
 
@@ -9,6 +9,10 @@ roughness = 0.85
 [sub_resource type="StandardMaterial3D" id="3_sail"]
 albedo_color = Color(0.95, 0.9, 0.82, 1)
 roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="9_crate"]
+albedo_color = Color(0.55, 0.38, 0.18, 1)
+roughness = 0.9
 
 [sub_resource type="BoxMesh" id="4_hull"]
 size = Vector3(3.5, 0.8, 9.0)
@@ -29,6 +33,10 @@ material = SubResource("2_wood")
 [sub_resource type="BoxMesh" id="8_sail"]
 size = Vector3(0.1, 5.0, 3.8)
 material = SubResource("3_sail")
+
+[sub_resource type="BoxMesh" id="10_crate_mesh"]
+size = Vector3(0.55, 0.42, 0.55)
+material = SubResource("9_crate")
 
 [node name="Ship" type="Node3D"]
 script = ExtResource("1_script")
@@ -63,3 +71,33 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 0)
 
 [node name="Starboard" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="Crate1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 0.62, 2.2)
+mesh = SubResource("10_crate_mesh")
+visible = false
+
+[node name="Crate2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.62, 2.2)
+mesh = SubResource("10_crate_mesh")
+visible = false
+
+[node name="Crate3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7, 0.62, 2.2)
+mesh = SubResource("10_crate_mesh")
+visible = false
+
+[node name="Crate4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 1.06, 2.2)
+mesh = SubResource("10_crate_mesh")
+visible = false
+
+[node name="Crate5" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.06, 2.2)
+mesh = SubResource("10_crate_mesh")
+visible = false
+
+[node name="Crate6" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7, 1.06, 2.2)
+mesh = SubResource("10_crate_mesh")
+visible = false

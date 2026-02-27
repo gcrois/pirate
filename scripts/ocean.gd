@@ -1,122 +1,120 @@
-extends MeshInstance3D
+extends Node3D
 
-# These must match the shader uniforms exactly.
-@export var wave_height: float = 0.8
-@export var wave_speed:  float = 1.0
-@export var wave_scale:  float = 0.25
+@export var ocean_material: ShaderMaterial
 
-# Matches MAX_WAKES in shader
-const MAX_WAKES = 2
+# [steepness, amplitude, dir_degrees, frequency, speed, phase_degrees]
+const _WAVES: Array = [
+	[4.20, 2.8,  14.0, 0.019, 0.62,   0.0],
+	[3.30, 2.1, 137.0, 0.031, 0.88,  41.0],
+	[2.50, 1.5,  73.0, 0.058, 1.45,  83.0],
+	[1.70, 1.0, 229.0, 0.097, 2.15,  19.0],
+	[1.10, 0.7, 307.0, 0.149, 2.95, 127.0],
+	[0.80, 0.4, 111.0, 0.236, 3.75, 211.0],
+]
 
-# Accumulated time that matches the shader's TIME built-in.
 var _elapsed: float = 0.0
 
-var _ocean_mat: ShaderMaterial
-var _inner_ocean: MeshInstance3D
-var _inner_mat: ShaderMaterial
+var s0 = null
+var s1 = null
 
-# Publicly accessible ships for inner meshes to follow
-var s0: ShipController = null
-var s1: ShipController = null
-
-# Fallback neutral texture (0.5 gray) to prevent shader artifacts in empty array slots
 var _neutral_tex: ImageTexture
+
 
 func _ready() -> void:
 	add_to_group("ocean")
-	
-	# Create a 1x1 neutral gray texture for empty wake slots
-	var img = Image.create(1, 1, false, Image.FORMAT_RGB8)
+
+	var img := Image.create(1, 1, false, Image.FORMAT_RGB8)
 	img.set_pixel(0, 0, Color(0.5, 0.5, 0.5))
 	_neutral_tex = ImageTexture.create_from_image(img)
-	
-	_ocean_mat = ShipController._get_shader_material(self)
-	_inner_ocean = get_tree().get_first_node_in_group("inner_ocean") as MeshInstance3D
+
+	_push_wave_params()
+	if ocean_material != null:
+		ocean_material.set_shader_parameter("wave_time_seconds", _elapsed)
+
 
 func _process(delta: float) -> void:
 	_elapsed += delta
-	_update_shader_params()
+	if ocean_material != null:
+		ocean_material.set_shader_parameter("wave_time_seconds", _elapsed)
+	_update_ships_and_wake()
 
-func _update_shader_params() -> void:
-	if _ocean_mat == null:
-		_ocean_mat = ShipController._get_shader_material(self)
-	
-	var ships = get_tree().get_nodes_in_group("ship")
-	
-	# Determine slot 0 and 1 deterministically
+
+func _push_wave_params() -> void:
+	if ocean_material == null:
+		return
+
+	var count := _WAVES.size()
+	var st := PackedFloat32Array()
+	var am := PackedFloat32Array()
+	var di := PackedFloat32Array()
+	var fr := PackedFloat32Array()
+	var sp := PackedFloat32Array()
+	var ph := PackedFloat32Array()
+	for w in _WAVES:
+		st.append(w[0])
+		am.append(w[1])
+		di.append(w[2])
+		fr.append(w[3])
+		sp.append(w[4])
+		ph.append(w[5])
+
+	ocean_material.set_shader_parameter("WaveCount", count)
+	ocean_material.set_shader_parameter("WaveSteepnesses", st)
+	ocean_material.set_shader_parameter("WaveAmplitudes", am)
+	ocean_material.set_shader_parameter("WaveDirectionsDegrees", di)
+	ocean_material.set_shader_parameter("WaveFrequencies", fr)
+	ocean_material.set_shader_parameter("WaveSpeeds", sp)
+	ocean_material.set_shader_parameter("WavePhases", ph)
+
+
+func _update_ships_and_wake() -> void:
+	if ocean_material == null:
+		return
+
 	s0 = null
 	s1 = null
-	
-	# Priority 1: The player-controlled vessel (not AI)
-	# Priority 2: The surfboard (if both are AI)
-	for s in ships:
-		if not s is ShipController: continue
-		if not s.is_ai:
-			s0 = s
-		elif s.is_surfboard:
-			s1 = s
-		else:
-			if s1 == null: s1 = s
-			elif s0 == null: s0 = s
-	
-	# Flip if s0 is still empty but s1 has something
+	for n in get_tree().get_nodes_in_group("ship"):
+		if n.get("is_ai") == null:
+			continue
+		var a = n
+		if not a.is_ai and s0 == null:
+			s0 = a
+		elif s1 == null:
+			s1 = a
+
 	if s0 == null and s1 != null:
 		s0 = s1
 		s1 = null
-	
-	# Collect all inner ocean materials
-	var inner_mats: Array[ShaderMaterial] = []
-	var inners = get_tree().get_nodes_in_group("inner_ocean")
-	for inn in inners:
-		var m = ShipController._get_shader_material(inn as MeshInstance3D)
-		if m: inner_mats.append(m)
-		# Update the individual follow_ship_index for each inner material
-		# based on the node's script property
-		if m and inn.get("follow_index") != null:
-			m.set_shader_parameter("follow_ship_index", inn.get("follow_index"))
 
 	for i in 2:
-		var s = s0 if i == 0 else s1
-		var pos = s.global_position if s else Vector3.ZERO
-		var spd = s._wave_speed if s else 0.0
-		var tex = s._wake_controller.wake_texture if (s and s._wake_controller) else _neutral_tex
-		var h_len = 0.0
-		var h_wid = 0.0
-		if s:
-			h_len = s.surfboard_half_length if s.is_surfboard else 4.5
-			h_wid = s.surfboard_half_width if s.is_surfboard else 1.75
-		
-		var s_idx = str(i)
-		
-		# Push to outer ocean
-		if _ocean_mat:
-			_ocean_mat.set_shader_parameter("ship_pos_" + s_idx, pos)
-			_ocean_mat.set_shader_parameter("ship_spd_" + s_idx, spd)
-			_ocean_mat.set_shader_parameter("wake_tex_" + s_idx, tex)
-			_ocean_mat.set_shader_parameter("ship_len_" + s_idx, h_len)
-			_ocean_mat.set_shader_parameter("ship_wid_" + s_idx, h_wid)
-			_ocean_mat.set_shader_parameter("ocean_size_meters", 100.0)
-			
-		# Push to ALL inner oceans
-		for im in inner_mats:
-			im.set_shader_parameter("ship_pos_" + s_idx, pos)
-			im.set_shader_parameter("ship_spd_" + s_idx, spd)
-			im.set_shader_parameter("wake_tex_" + s_idx, tex)
-			im.set_shader_parameter("ship_len_" + s_idx, h_len)
-			im.set_shader_parameter("ship_wid_" + s_idx, h_wid)
-			im.set_shader_parameter("ocean_size_meters", 100.0)
+		var a = s0 if i == 0 else s1
+		var pos = a.global_position if a else Vector3.ZERO
+		var spd = a._wave_speed if a else 0.0
+		var tex = a._wake_controller.wake_texture if a and a._wake_controller else _neutral_tex
+		var h_len = (a.surfboard_half_length if a.actor_type == "surfboard" else 4.5) if a else 4.5
+		var h_wid = (a.surfboard_half_width if a.actor_type == "surfboard" else 1.75) if a else 1.75
+		var idx = str(i)
+		ocean_material.set_shader_parameter("ship_pos_" + idx, pos)
+		ocean_material.set_shader_parameter("ship_spd_" + idx, spd)
+		ocean_material.set_shader_parameter("wake_tex_" + idx, tex)
+		ocean_material.set_shader_parameter("ship_len_" + idx, h_len)
+		ocean_material.set_shader_parameter("ship_wid_" + idx, h_wid)
 
-## Returns the wave surface height at a world-space position.
+	ocean_material.set_shader_parameter("ocean_size_meters", 100.0)
+
+
 func get_wave_height(world_pos: Vector3) -> float:
-	var t: float = _elapsed * wave_speed
-	var p: Vector2 = Vector2(world_pos.x, world_pos.z)
-	var s: float   = wave_scale
-	var amp: float = wave_height
-	var w: float   = 0.0
-	w += sin(Vector2( 0.800,  0.600).dot(p) * s * 1.00 + t * 1.00) * amp * 1.000
-	w += sin(Vector2( 0.980,  0.200).dot(p) * s * 1.60 + t * 0.80) * amp * 0.600
-	w += sin(Vector2( 0.195,  0.981).dot(p) * s * 2.20 + t * 1.30) * amp * 0.350
-	w += sin(Vector2(-0.686,  0.728).dot(p) * s * 3.80 + t * 2.00) * amp * 0.180
-	w += sin(Vector2( 0.530, -0.848).dot(p) * s * 6.50 + t * 2.60) * amp * 0.090
-	w += sin(Vector2(-0.978,  0.208).dot(p) * s * 10.0 + t * 1.50) * amp * 0.045
-	return w
+	var x := world_pos.x
+	var z := world_pos.z
+	var t := _elapsed
+	var total := 0.0
+	for w in _WAVES:
+		var steepness: float = w[0]
+		var dir_deg: float = w[2]
+		var frequency: float = w[3]
+		var speed: float = w[4]
+		var phase_deg: float = w[5]
+		var dir := Vector2(sin(dir_deg * TAU / 360.0), cos(dir_deg * TAU / 360.0))
+		var p := phase_deg * TAU / 360.0
+		total += steepness * sin(TAU * frequency * dir.dot(Vector2(x, z)) + speed * (t + p))
+	return total / float(_WAVES.size())

@@ -1,14 +1,19 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ship.tscn" id="1_ship"]
-[ext_resource type="Shader" path="res://shaders/ocean.gdshader" id="2_shader"]
 [ext_resource type="Script" path="res://scripts/ocean.gd" id="3_ocean_script"]
 [ext_resource type="Script" path="res://scripts/camera_follow.gd" id="4_cam_script"]
 [ext_resource type="Script" path="res://scripts/island.gd" id="5_island_script"]
-[ext_resource type="Script" path="res://scripts/inner_ocean.gd" id="6_inner_script"]
 [ext_resource type="Script" path="res://scripts/debug_overlay.gd" id="7_debug_script"]
 [ext_resource type="Script" path="res://scripts/test_buoyancy.gd" id="8_test_script"]
-[ext_resource type="Script" path="res://scripts/vessel_manager.gd" id="9_vessel_script"]
+[ext_resource type="Script" path="res://scripts/trade_menu.gd" id="15_trade_menu"]
+[ext_resource type="Script" path="res://scripts/island_name_overlay.gd" id="16_island_labels"]
+[ext_resource type="Script" path="res://scripts/minimap_view.gd" id="17_minimap"]
+[ext_resource type="Script" path="res://addons/boujie_water_shader/types/ocean.gd" id="10_boujie_ocean"]
+[ext_resource type="Script" path="res://addons/boujie_water_shader/types/camera_follower_3d.gd" id="11_boujie_cam_follow"]
+[ext_resource type="Shader" path="res://shaders/water.gdshader" id="12_water_shader"]
+[ext_resource type="Texture2D" path="res://addons/boujie_water_shader/shader/ocean_albedo_white_highcontrast.png" id="13_albedo_tex"]
+[ext_resource type="Texture2D" path="res://addons/boujie_water_shader/shader/foam_2.png" id="14_foam_tex"]
 
 [sub_resource type="ProceduralSkyMaterial" id="8_sky_mat"]
 sky_top_color = Color(0.18, 0.46, 0.82, 1)
@@ -28,74 +33,55 @@ fog_enabled = true
 fog_density = 0.006
 fog_aerial_perspective = 0.5
 
-[sub_resource type="ShaderMaterial" id="11_outer_mat"]
-shader = ExtResource("2_shader")
-shader_parameter/shallow_color = Color(0.05, 0.52, 0.68, 1.0)
-shader_parameter/deep_color = Color(0.01, 0.12, 0.32, 1.0)
-shader_parameter/wave_height = 0.8
-shader_parameter/wave_speed = 1.0
-shader_parameter/wave_scale = 0.25
+[sub_resource type="ShaderMaterial" id="11_water_mat"]
+shader = ExtResource("12_water_shader")
+shader_parameter/albedo = Color(0.05, 0.52, 0.68, 0.62)
+shader_parameter/albedo_fresnel = Color(0.08, 0.38, 0.72, 0.96)
+shader_parameter/texture_albedo = ExtResource("13_albedo_tex")
+shader_parameter/specular = 0.9
 shader_parameter/roughness = 0.04
-shader_parameter/bow_wave_depth = 1.8
-shader_parameter/bow_v_angle = 0.4
-shader_parameter/wake_length = 60.0
-shader_parameter/wake_amplitude = 0.5
-shader_parameter/wake_frequency = 0.28
+shader_parameter/metallic = 0.0
+shader_parameter/vertex_displace_from_mesh_normal = false
+shader_parameter/normal_wave_from_mesh_normal = false
+shader_parameter/texture_foam = ExtResource("14_foam_tex")
+shader_parameter/distance_fade_min = 450.0
+shader_parameter/distance_fade_max = 600.0
+shader_parameter/near_fade_min = 1.5
+shader_parameter/near_fade_max = 1.7
+shader_parameter/foam_fade_min = 150.0
+shader_parameter/foam_fade_max = 350.0
+shader_parameter/vertex_wave_fade_min = 200.0
+shader_parameter/vertex_wave_fade_max = 500.0
+shader_parameter/uv_blend_sharpness = 2.0
+shader_parameter/uv_tri_scale = Vector3(20, 20, 20)
+shader_parameter/uv_tri_offset = Vector3(0, 0, 0)
+shader_parameter/WaveCount = 6
+shader_parameter/WaveSteepnesses = PackedFloat32Array(4.2, 3.3, 2.5, 1.7, 1.1, 0.8)
+shader_parameter/WaveAmplitudes = PackedFloat32Array(2.8, 2.1, 1.5, 1.0, 0.7, 0.4)
+shader_parameter/WaveDirectionsDegrees = PackedFloat32Array(14.0, 137.0, 73.0, 229.0, 307.0, 111.0)
+shader_parameter/WaveFrequencies = PackedFloat32Array(0.019, 0.031, 0.058, 0.097, 0.149, 0.236)
+shader_parameter/WaveSpeeds = PackedFloat32Array(0.62, 0.88, 1.45, 2.15, 2.95, 3.75)
+shader_parameter/WavePhases = PackedFloat32Array(0.0, 41.0, 83.0, 19.0, 127.0, 211.0)
+shader_parameter/FoamWaveCount = 2
+shader_parameter/FoamWaveSteepnesses = PackedFloat32Array(0.8, 0.5)
+shader_parameter/FoamWaveAmplitudes = PackedFloat32Array(0.6, 0.4)
+shader_parameter/FoamWaveDirectionsDegrees = PackedFloat32Array(22.0, 280.0)
+shader_parameter/FoamWaveFrequencies = PackedFloat32Array(0.025, 0.065)
+shader_parameter/FoamWaveSpeeds = PackedFloat32Array(0.75, 1.85)
+shader_parameter/FoamWavePhases = PackedFloat32Array(0.0, 15.0)
+shader_parameter/UVWaveCount = 2
+shader_parameter/UVWaveSteepnesses = PackedFloat32Array(0.09, 0.08)
+shader_parameter/UVWaveAmplitudes = PackedFloat32Array(0.7, 0.5)
+shader_parameter/UVWaveDirectionsDegrees = PackedFloat32Array(315.0, 90.0)
+shader_parameter/UVWaveFrequencies = PackedFloat32Array(0.9, 0.6)
+shader_parameter/UVWaveSpeeds = PackedFloat32Array(0.75, 0.375)
+shader_parameter/UVWavePhases = PackedFloat32Array(0.0, 0.0)
+shader_parameter/ocean_size_meters = 100.0
+shader_parameter/wake_max_displacement = 2.0
 shader_parameter/ring_frequency = 0.5
 shader_parameter/ring_speed = 10.0
 shader_parameter/ring_decay = 18.0
-shader_parameter/ring_amplitude = 0.0
-shader_parameter/edge_fade_radius = 0.0
-
-[sub_resource type="PlaneMesh" id="12_outer_mesh"]
-size = Vector2(800, 800)
-subdivide_width = 150
-subdivide_depth = 150
-material = SubResource("11_outer_mat")
-
-[sub_resource type="ShaderMaterial" id="13_inner_mat"]
-shader = ExtResource("2_shader")
-shader_parameter/shallow_color = Color(0.05, 0.52, 0.68, 1.0)
-shader_parameter/deep_color = Color(0.01, 0.12, 0.32, 1.0)
-shader_parameter/wave_height = 0.8
-shader_parameter/wave_speed = 1.0
-shader_parameter/wave_scale = 0.25
-shader_parameter/roughness = 0.04
-shader_parameter/bow_wave_depth = 1.8
-shader_parameter/bow_v_angle = 0.4
-shader_parameter/wake_length = 60.0
-shader_parameter/wake_amplitude = 0.5
-shader_parameter/wake_frequency = 0.28
-shader_parameter/ring_frequency = 0.5
-shader_parameter/ring_speed = 10.0
-shader_parameter/ring_decay = 18.0
-shader_parameter/ring_amplitude = 0.25
-shader_parameter/edge_fade_radius = 38.0
-
-[sub_resource type="ShaderMaterial" id="15_inner_mat"]
-shader = ExtResource("2_shader")
-shader_parameter/shallow_color = Color(0.05, 0.52, 0.68, 1.0)
-shader_parameter/deep_color = Color(0.01, 0.12, 0.32, 1.0)
-shader_parameter/wave_height = 0.8
-shader_parameter/wave_speed = 1.0
-shader_parameter/wave_scale = 0.25
-shader_parameter/roughness = 0.04
-shader_parameter/bow_wave_depth = 1.8
-shader_parameter/bow_v_angle = 0.4
-shader_parameter/wake_length = 60.0
-shader_parameter/wake_amplitude = 0.5
-shader_parameter/wake_frequency = 0.28
-shader_parameter/ring_frequency = 0.5
-shader_parameter/ring_speed = 10.0
-shader_parameter/ring_decay = 18.0
-shader_parameter/ring_amplitude = 0.25
-shader_parameter/edge_fade_radius = 38.0
-
-[sub_resource type="PlaneMesh" id="14_inner_mesh"]
-size = Vector2(80, 80)
-subdivide_width = 200
-subdivide_depth = 200
-material = SubResource("13_inner_mat")
+shader_parameter/ring_amplitude = 0.15
 
 [node name="Main" type="Node3D"]
 
@@ -107,41 +93,60 @@ transform = Transform3D(1, 0, 0, 0, 0.766, 0.643, 0, -0.643, 0.766, 0, 20, 0)
 light_energy = 1.5
 shadow_enabled = true
 
-[node name="Ocean" type="MeshInstance3D" parent="."]
-mesh = SubResource("12_outer_mesh")
+[node name="Ocean" type="Node3D" parent="."]
 script = ExtResource("3_ocean_script")
+ocean_material = SubResource("11_water_mat")
 
-[node name="InnerOcean" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0)
-mesh = SubResource("14_inner_mesh")
-material_override = SubResource("13_inner_mat")
-script = ExtResource("6_inner_script")
-follow_index = 0
+[node name="OceanMesh" type="Node3D" parent="Ocean"]
+script = ExtResource("10_boujie_ocean")
+material = SubResource("11_water_mat")
+outermost_resolution = 10
+levels_of_detail = 4
+unit_size = 1.0
+far_edge = 600
 
-[node name="InnerOcean2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0)
-mesh = SubResource("14_inner_mesh")
-material_override = SubResource("15_inner_mat")
-script = ExtResource("6_inner_script")
-follow_index = 1
+[node name="CameraFollower3D" type="Node3D" parent="Ocean/OceanMesh"]
+script = ExtResource("11_boujie_cam_follow")
+target_path = NodePath("..")
+snap = true
+snap_unit = 8.0
 
-[node name="Ship" parent="." instance=ExtResource("1_ship")]
-is_surfboard = false
+[node name="Trader" parent="." instance=ExtResource("1_ship")]
+actor_name = "Red Jack"
+actor_type = "ship"
 is_ai = true
 
-[node name="Surfboard" parent="." instance=ExtResource("1_ship")]
+[node name="Player" parent="." instance=ExtResource("1_ship")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 10)
-is_surfboard = true
+actor_name = "Captain"
+actor_type = "ship"
 is_ai = false
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.906, -0.423, 0, 0.423, 0.906, 0, 8, 15)
 script = ExtResource("4_cam_script")
-target = NodePath("../Surfboard")
+target = NodePath("../Player")
 
 [node name="DebugOverlay" type="CanvasLayer" parent="."]
 script = ExtResource("7_debug_script")
 
+[node name="TradeMenu" type="CanvasLayer" parent="."]
+script = ExtResource("15_trade_menu")
+
+[node name="IslandNames" type="CanvasLayer" parent="."]
+script = ExtResource("16_island_labels")
+
+[node name="Minimap" type="CanvasLayer" parent="."]
+layer = 14
+
+[node name="Map" type="Control" parent="Minimap"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -332.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 248.0
+script = ExtResource("17_minimap")
 
 [node name="Tortuga" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 0, -65)
@@ -190,10 +195,6 @@ radius = 28.0
 peak_height = 10.0
 num_palms = 5
 island_seed = 6006
-
-[node name="VesselManager" type="Node" parent="."]
-script = ExtResource("9_vessel_script")
-camera_path = NodePath("../Camera3D")
 
 [node name="BuoyancyTest" type="Node" parent="."]
 script = ExtResource("8_test_script")

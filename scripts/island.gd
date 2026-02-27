@@ -1,18 +1,30 @@
 extends Node3D
 
-@export var radius:     float = 15.0
+@export var radius:      float = 15.0
 @export var peak_height: float = 6.0
-@export var num_palms:  int   = 3
-@export var island_seed: int  = 0
+@export var num_palms:   int   = 3
+@export var island_seed: int   = 0
 
 const RINGS := 12
 const SEGS  := 28
 
+## Per-island market prices, generated deterministically from island_seed.
+var buy_prices:  Dictionary = {}
+var sell_prices: Dictionary = {}
+
 func _ready() -> void:
+	add_to_group("island")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = island_seed
 	_build_terrain(rng)
 	_build_palms(rng)
+	_build_market(rng)
+
+func _build_market(rng: RandomNumberGenerator) -> void:
+	for good in Economy.GOODS:
+		var base: int = Economy.BASE_PRICES[good]
+		buy_prices[good]  = max(10, int(base * rng.randf_range(0.85, 1.55)))
+		sell_prices[good] = max(5,  int(buy_prices[good] * rng.randf_range(0.60, 0.82)))
 
 # ------------------------------------------------------------------
 # Terrain height at a normalised radius (0 = centre, 1 = outer edge).
