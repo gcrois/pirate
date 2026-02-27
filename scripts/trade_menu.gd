@@ -5,9 +5,18 @@ var _title_lbl: Label
 var _gold_lbl: Label
 var _cargo_lbl: Label
 var _good_rows: Dictionary = {} # good -> {buy_btn, sell_btn, count}
+var _upgrade_rows: Dictionary = {} # id -> {lvl, btn}
 
 var _current_island = null
 var _closed_island = null
+
+const UPGRADE_ORDER: Array = ["hull", "cannons", "reload", "engine"]
+const UPGRADE_NAMES: Dictionary = {
+	"hull": "Hull Plating",
+	"cannons": "Cannon Damage",
+	"reload": "Reload Speed",
+	"engine": "Engine Power",
+}
 
 
 func _ready() -> void:
@@ -108,6 +117,43 @@ func _build_ui() -> void:
 		vbox.add_child(row)
 		_good_rows[good] = {buy_btn = buy_btn, sell_btn = sell_btn, count = count_lbl}
 
+	vbox.add_child(HSeparator.new())
+
+	var upg_header := Label.new()
+	upg_header.text = "Upgrades"
+	upg_header.add_theme_font_size_override("font_size", 27)
+	vbox.add_child(upg_header)
+
+	for upg in UPGRADE_ORDER:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+
+		var name_lbl := Label.new()
+		name_lbl.text = UPGRADE_NAMES.get(upg, upg.capitalize())
+		name_lbl.custom_minimum_size = Vector2(260, 0)
+		name_lbl.add_theme_font_size_override("font_size", 23)
+		row.add_child(name_lbl)
+
+		var lvl_lbl := Label.new()
+		lvl_lbl.text = "Lv 0"
+		lvl_lbl.custom_minimum_size = Vector2(90, 0)
+		lvl_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lvl_lbl.add_theme_font_size_override("font_size", 22)
+		row.add_child(lvl_lbl)
+
+		var spacer := Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(spacer)
+
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(260, 52)
+		btn.add_theme_font_size_override("font_size", 21)
+		btn.pressed.connect(_on_upgrade.bind(upg))
+		row.add_child(btn)
+
+		vbox.add_child(row)
+		_upgrade_rows[upg] = {lvl = lvl_lbl, btn = btn}
+
 
 func _process(_delta: float) -> void:
 	_poll_proximity()
@@ -171,6 +217,18 @@ func _refresh_ui() -> void:
 		row["sell_btn"].text = "Sell %dg" % sell_price
 		row["sell_btn"].disabled = count <= 0
 
+	for upg in UPGRADE_ORDER:
+		var row = _upgrade_rows[upg]
+		var level: int = player.get_upgrade_level(upg)
+		var cost: int = player.get_upgrade_cost(upg)
+		row["lvl"].text = "Lv %d" % level
+		if cost <= 0:
+			row["btn"].text = "Maxed"
+			row["btn"].disabled = true
+		else:
+			row["btn"].text = "Upgrade %dg" % cost
+			row["btn"].disabled = player.gold < cost
+
 
 func _on_buy(good: String) -> void:
 	if _current_island == null:
@@ -196,3 +254,13 @@ func _on_close() -> void:
 	_closed_island = _current_island
 	_current_island = null
 	_panel.hide()
+
+
+func _on_upgrade(kind: String) -> void:
+	if _current_island == null:
+		return
+	var player = _get_player_actor()
+	if player == null:
+		return
+	player.apply_upgrade(kind)
+	_refresh_ui()

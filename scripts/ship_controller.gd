@@ -1,9 +1,12 @@
 class_name Actor
 extends Node3D
 
+const CANNONBALL_SCRIPT = preload("res://scripts/cannonball.gd")
+
 @export var actor_name:   String = ""
 @export var actor_type:   String = "ship"   # "ship" or "surfboard"
 @export var is_ai:        bool   = false
+@export_enum("player", "enemy", "neutral") var faction: String = "neutral"
 
 @export var max_speed:    float = 10.0
 @export var acceleration: float = 8.0
@@ -25,6 +28,15 @@ extends Node3D
 @export var anchor_hard_padding: float = 3.5
 @export var anchor_brake: float = 9.0
 
+@export_category("Combat")
+@export var max_health: float = 140.0
+@export var cannon_range: float = 210.0
+@export var cannon_reload: float = 1.8
+@export var cannonball_speed: float = 28.0
+@export var cannon_damage: float = 20.0
+@export var cannons_per_side: int = 4
+@export var bounty_gold: int = 120
+
 @onready var _bow:       Marker3D = $Bow
 @onready var _stern:     Marker3D = $Stern
 @onready var _port:      Marker3D = $Port
@@ -39,6 +51,12 @@ var _ocean:         Node
 var _current_drag:  float = 1.0
 var _current_speed: float = 0.0
 var _anchor_factor: float = 1.0
+var _reload_port: float = 0.0
+var _reload_starboard: float = 0.0
+var _spawn_pos: Vector3
+var health: float = 0.0
+var _upgrade_levels: Dictionary = {"hull": 0, "cannons": 0, "reload": 0, "engine": 0}
+var _ai_orbit_sign: float = 1.0
 
 var _wake_controller: WakeController
 
@@ -50,6 +68,20 @@ var _wave_speed: float   = 0.0
 # Vertical physics
 const GRAVITY: float = 9.8
 var _vert_vel:  float = 0.0
+
+const _UPGRADE_BASE_COSTS: Dictionary = {
+	"hull": 150,
+	"cannons": 190,
+	"reload": 230,
+	"engine": 170,
+}
+
+const _UPGRADE_MAX_LEVELS: Dictionary = {
+	"hull": 4,
+	"cannons": 4,
+	"reload": 4,
+	"engine": 4,
+}
 
 # Cached original ship mesh so we can restore after a surfboard switch
 var _orig_hull_mesh: Mesh     = null
@@ -79,8 +111,12 @@ func _ready() -> void:
 	add_to_group("ship")
 	_prev_pos = global_position
 	_ocean    = get_tree().get_first_node_in_group("ocean")
+	_spawn_pos = global_position
+	health = max_health
 	if actor_name.is_empty():
 		actor_name = name
+	if is_ai and faction == "enemy":
+		_ai_orbit_sign = -1.0 if int(get_instance_id()) % 2 == 0 else 1.0
 
 	# Initialise per-actor inventory from the shared goods list
 	for good in Economy.GOODS:
@@ -107,6 +143,10 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_S:
 			_toggle_type()
+		elif event.physical_keycode == KEY_Q:
+			_try_fire_port()
+		elif event.physical_keycode == KEY_E:
+			_try_fire_starboard()
 
 
 func _toggle_type() -> void:
@@ -155,6 +195,9 @@ func _set_type(type: String) -> void:
 
 func _process(delta: float) -> void:
 	_handle_movement(delta)
+	_reload_port = max(0.0, _reload_port - delta)
+	_reload_starboard = max(0.0, _reload_starboard - delta)
+	_handle_combat(delta)
 	_apply_island_anchor(delta)
 	_handle_buoyancy(delta)
 
@@ -166,6 +209,84 @@ func _process(delta: float) -> void:
 
 	_update_wake(delta)
 	_update_crates()
+
+
+func get_upgrade_level(kind: String) -> int:
+	return int(_upgrade_levels.get(kind, 0))
+
+
+func get_upgrade_cost(kind: String) -> int:
+	if not _upgrade_levels.has(kind):
+		return -1
+	var level: int = int(_upgrade_levels[kind])
+	var max_level: int = int(_UPGRADE_MAX_LEVELS.get(kind, 0))
+	if level >= max_level:
+		return -1
+	var base: int = int(_UPGRADE_BASE_COSTS.get(kind, 0))
+	return int(round(float(base) * pow(1.7, level)))
+
+
+func can_upgrade(kind: String) -> bool:
+	var cost: int = get_upgrade_cost(kind)
+	return cost > 0 and gold >= cost
+
+
+func apply_upgrade(kind: String) -> bool:
+	var cost: int = get_upgrade_cost(kind)
+	if cost <= 0 or gold < cost:
+		return false
+
+	gold -= cost
+	var level: int = int(_upgrade_levels.get(kind, 0)) + 1
+	_upgrade_levels[kind] = level
+
+	match kind:
+		"hull":
+			max_health += 35.0
+			health = max_health
+		"cannons":
+			cannon_damage += 8.0
+			cannons_per_side = min(cannons_per_side + 1, 6)
+		"reload":
+			cannon_reload = max(0.35, cannon_reload * 0.82)
+		"engine":
+			max_speed += 1.2
+			acceleration += 0.9
+		_:
+			return false
+	return true
+
+
+func apply_damage(amount: float, attacker = null) -> void:
+	if amount <= 0.0 or health <= 0.0:
+		return
+	health = max(0.0, health - amount)
+	if health > 0.0:
+		return
+	_on_sunk(attacker)
+
+
+func on_kill(victim) -> void:
+	if victim == null:
+		return
+	var bounty: int = int(victim.get("bounty_gold"))
+	gold += max(0, bounty)
+
+
+func _on_sunk(attacker) -> void:
+	if attacker != null and attacker.has_method("on_kill"):
+		attacker.on_kill(self)
+
+	if is_ai and faction == "enemy":
+		queue_free()
+		return
+
+	# Player/neutral recovery
+	gold = int(floor(float(gold) * 0.8))
+	health = max_health
+	_current_speed = 0.0
+	_vert_vel = 0.0
+	global_position = _spawn_pos
 
 
 func total_inventory() -> int:
@@ -234,8 +355,9 @@ func _handle_movement(delta: float) -> void:
 	var steer    := 0.0
 
 	if is_ai:
-		throttle = 1.0
-		steer    = 1.0
+		var ai_controls: Vector2 = _get_ai_controls()
+		throttle = ai_controls.x
+		steer = ai_controls.y
 	else:
 		# S is reserved for type-toggle; reverse uses Down-arrow only
 		if   Input.is_physical_key_pressed(KEY_UP)    or Input.is_physical_key_pressed(KEY_W):
@@ -259,6 +381,134 @@ func _handle_movement(delta: float) -> void:
 		global_position += -transform.basis.z * _current_speed * delta
 	if steer != 0.0:
 		rotate_y(steer * turn_speed * delta * lerp(0.4, 1.0, _anchor_factor))
+
+
+func _get_ai_controls() -> Vector2:
+	if faction != "enemy":
+		return Vector2(0.85, 0.15)
+
+	var target = _get_enemy_target()
+	if target == null:
+		return Vector2(0.7, 0.2)
+
+	var local: Vector3 = to_local(target.global_position)
+	var distance: float = global_position.distance_to(target.global_position)
+
+	var desired_side_x: float = 18.0 * _ai_orbit_sign
+	var side_error: float = local.x - desired_side_x
+
+	var steer := 0.0
+	if side_error < -3.0:
+		steer = 1.0
+	elif side_error > 3.0:
+		steer = -1.0
+
+	var throttle := 0.9
+	if distance > cannon_range * 1.2:
+		throttle = 1.0
+	elif distance < cannon_range * 0.52:
+		throttle = -0.35
+	elif distance < cannon_range * 0.75:
+		throttle = 0.35
+
+	if abs(local.x) < 6.0:
+		steer = -_ai_orbit_sign
+	if distance > cannon_range * 1.6:
+		steer = clamp(-local.x / 18.0, -1.0, 1.0)
+	return Vector2(throttle, steer)
+
+
+func _get_enemy_target():
+	var player_target = _get_player_target()
+	if player_target != null:
+		return player_target
+
+	var best = null
+	var best_dist: float = INF
+	var ships: Array = get_tree().get_nodes_in_group("ship")
+	for n in ships:
+		if n == self:
+			continue
+		if n.get("health") == null or float(n.health) <= 0.0:
+			continue
+		if str(n.get("faction")) == faction:
+			continue
+		var d: float = global_position.distance_to(n.global_position)
+		if d < best_dist:
+			best_dist = d
+			best = n
+	return best
+
+
+func _get_player_target():
+	var ships: Array = get_tree().get_nodes_in_group("ship")
+	for n in ships:
+		if str(n.get("faction")) != "player":
+			continue
+		if n.get("health") == null or float(n.health) <= 0.0:
+			continue
+		return n
+	return null
+
+
+func _handle_combat(_delta: float) -> void:
+	if faction != "enemy" or not is_ai:
+		return
+	var target = _get_enemy_target()
+	if target == null:
+		return
+	var dist: float = global_position.distance_to(target.global_position)
+	if dist > cannon_range:
+		return
+	var local: Vector3 = to_local(target.global_position)
+	if local.x < -8.0 and abs(local.z) < cannon_range * 0.85:
+		_try_fire_port()
+	elif local.x > 8.0 and abs(local.z) < cannon_range * 0.85:
+		_try_fire_starboard()
+
+
+func _try_fire_port() -> void:
+	if actor_type != "ship" or health <= 0.0:
+		return
+	if _reload_port > 0.0:
+		return
+	_reload_port = cannon_reload
+	_fire_broadside(-1)
+
+
+func _try_fire_starboard() -> void:
+	if actor_type != "ship" or health <= 0.0:
+		return
+	if _reload_starboard > 0.0:
+		return
+	_reload_starboard = cannon_reload
+	_fire_broadside(1)
+
+
+func _fire_broadside(side: int) -> void:
+	var half_len: float = 4.2
+	var half_wid: float = 1.8
+	var count: int = max(1, cannons_per_side)
+	var denom: float = max(1.0, float(count - 1))
+	for i in range(count):
+		var t: float = float(i) / denom - 0.5
+		var muzzle: Vector3 = global_position
+		muzzle += transform.basis.x * (float(side) * (half_wid + 0.35))
+		muzzle += transform.basis.z * (t * half_len * 1.25)
+		muzzle += Vector3.UP * 0.45
+		var direction: Vector3 = transform.basis.x * float(side)
+		direction += -transform.basis.z * (t * 0.35)
+		direction = direction.normalized()
+		_spawn_cannonball(muzzle, direction)
+
+
+func _spawn_cannonball(origin: Vector3, direction: Vector3) -> void:
+	var ball = CANNONBALL_SCRIPT.new()
+	if ball == null:
+		return
+	get_tree().current_scene.add_child(ball)
+	if ball.has_method("setup"):
+		ball.setup(self, origin, direction * cannonball_speed, cannon_damage, faction, cannon_range * 3.4)
 
 
 func _compute_anchor_factor() -> float:

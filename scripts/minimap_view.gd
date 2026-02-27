@@ -4,7 +4,8 @@ extends Control
 @export var island_color: Color = Color(0.92, 0.83, 0.58, 0.9)
 @export var island_name_color: Color = Color(0.08, 0.06, 0.02, 0.95)
 @export var player_color: Color = Color(0.2, 1.0, 0.35, 1.0)
-@export var ai_color: Color = Color(1.0, 0.35, 0.3, 1.0)
+@export var enemy_color: Color = Color(1.0, 0.35, 0.3, 1.0)
+@export var neutral_color: Color = Color(1.0, 0.82, 0.32, 1.0)
 
 
 func _ready() -> void:
@@ -60,8 +61,12 @@ func _draw_actors() -> void:
 		if actor.get("actor_type") == null:
 			continue
 		var map_pos := _world_to_map(actor.global_position)
-		var is_ai: bool = bool(actor.get("is_ai"))
-		var color := ai_color if is_ai else player_color
+		var faction := str(actor.get("faction"))
+		var color := player_color
+		if faction == "enemy":
+			color = enemy_color
+		elif faction == "neutral":
+			color = neutral_color
 		draw_circle(map_pos, 4.5, color)
 		var fwd := Vector2(-actor.transform.basis.z.x, -actor.transform.basis.z.z)
 		if fwd.length_squared() > 0.0001:

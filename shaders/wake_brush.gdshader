@@ -36,13 +36,13 @@ void fragment() {
 
 	// Inside-hull trench (dark displacement) so the whole hull footprint interacts.
 	float inside = 1.0 - smoothstep(0.95, 1.10, n);
-	float trench = inside * (0.10 + 0.34 * (1.0 - clamp(n * n, 0.0, 1.0))) * draft_fac;
+	float trench = inside * (0.03 + 0.12 * (1.0 - clamp(n * n, 0.0, 1.0))) * draft_fac;
 
 	// Around-hull pressure (white displacement): bow + sides.
 	float hull_band = 1.0 - smoothstep(0.90, 1.45, n);
 	float bow = smoothstep(0.40, -1.10, local_xz.y / max(ship_half_length, 0.05)); // -Z is bow
 	float side = smoothstep(0.25, 1.0, abs(local_xz.x) / max(ship_half_width, 0.05));
-	float pressure = hull_band * speed_fac * (0.16 + 0.52 * bow + 0.22 * side);
+	float pressure = hull_band * speed_fac * (0.05 + 0.16 * bow + 0.08 * side);
 
 	// Very short stern stamp only; feedback/advection should build the long, curved wake.
 	// Painting an extended trail in ship-local space each frame visually "snaps" wake to heading.
@@ -62,11 +62,11 @@ void fragment() {
 		ship_half_width * 0.95,
 		length(local_xz - vec2(ship_half_width * 0.68, stern_center))
 	);
-	float trail = speed_fac * (stern_band * stern_width * 0.26 + (v_l + v_r) * 0.30);
+	float trail = speed_fac * (stern_band * stern_width * 0.62 + (v_l + v_r) * 0.90);
 
 	float displacement = pressure + trail - trench;
 	float target = clamp(0.5 + displacement, 0.0, 1.0);
-	float influence = max(inside, max(hull_band * 0.75, trail));
+	float influence = max(inside * 0.30, max(hull_band * 0.24, trail * 1.15));
 
 	if (influence < 0.001) {
 		COLOR = vec4(0.5, 0.5, 0.5, 0.0);

@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ship.tscn" id="1_ship"]
 [ext_resource type="Script" path="res://scripts/ocean.gd" id="3_ocean_script"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/trade_menu.gd" id="15_trade_menu"]
 [ext_resource type="Script" path="res://scripts/island_name_overlay.gd" id="16_island_labels"]
 [ext_resource type="Script" path="res://scripts/minimap_view.gd" id="17_minimap"]
+[ext_resource type="Script" path="res://scripts/health_bar_overlay.gd" id="18_health_overlay"]
 [ext_resource type="Script" path="res://addons/boujie_water_shader/types/ocean.gd" id="10_boujie_ocean"]
 [ext_resource type="Script" path="res://addons/boujie_water_shader/types/camera_follower_3d.gd" id="11_boujie_cam_follow"]
 [ext_resource type="Shader" path="res://shaders/water.gdshader" id="12_water_shader"]
@@ -115,12 +116,28 @@ snap_unit = 8.0
 actor_name = "Red Jack"
 actor_type = "ship"
 is_ai = true
+faction = "neutral"
 
 [node name="Player" parent="." instance=ExtResource("1_ship")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 10)
 actor_name = "Captain"
 actor_type = "ship"
 is_ai = false
+faction = "player"
+
+[node name="RaiderA" parent="." instance=ExtResource("1_ship")]
+transform = Transform3D(0.843391, 0, -0.5373, 0, 1, 0, 0.5373, 0, 0.843391, -120, 0, -110)
+actor_name = "Black Squall"
+actor_type = "ship"
+is_ai = true
+faction = "enemy"
+
+[node name="RaiderB" parent="." instance=ExtResource("1_ship")]
+transform = Transform3D(0.984808, 0, 0.173648, 0, 1, 0, -0.173648, 0, 0.984808, 170, 0, 145)
+actor_name = "Iron Fang"
+actor_type = "ship"
+is_ai = true
+faction = "enemy"
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.906, -0.423, 0, 0.423, 0.906, 0, 8, 15)
@@ -147,6 +164,9 @@ offset_top = 16.0
 offset_right = -16.0
 offset_bottom = 248.0
 script = ExtResource("17_minimap")
+
+[node name="HealthBars" type="CanvasLayer" parent="."]
+script = ExtResource("18_health_overlay")
 
 [node name="Tortuga" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 0, -65)

@@ -4,7 +4,7 @@ uniform sampler2D screen_buffer : hint_screen_texture, repeat_disable, filter_li
 
 uniform float fade_speed = 0.000;
 uniform float dynamic_fade = 0.0; // Extra fade controlled by velocity
-uniform float spread_distance = 0.0;
+uniform float spread_distance = 0.0001;
 
 // The exact offset representing the ship's movement this frame
 uniform vec2 movement_offset = vec2(0.0);
