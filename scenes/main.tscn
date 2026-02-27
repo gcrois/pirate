@@ -1,0 +1,199 @@
+[gd_scene load_steps=15 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/ship.tscn" id="1_ship"]
+[ext_resource type="Shader" path="res://shaders/ocean.gdshader" id="2_shader"]
+[ext_resource type="Script" path="res://scripts/ocean.gd" id="3_ocean_script"]
+[ext_resource type="Script" path="res://scripts/camera_follow.gd" id="4_cam_script"]
+[ext_resource type="Script" path="res://scripts/island.gd" id="5_island_script"]
+[ext_resource type="Script" path="res://scripts/inner_ocean.gd" id="6_inner_script"]
+[ext_resource type="Script" path="res://scripts/debug_overlay.gd" id="7_debug_script"]
+[ext_resource type="Script" path="res://scripts/test_buoyancy.gd" id="8_test_script"]
+[ext_resource type="Script" path="res://scripts/vessel_manager.gd" id="9_vessel_script"]
+
+[sub_resource type="ProceduralSkyMaterial" id="8_sky_mat"]
+sky_top_color = Color(0.18, 0.46, 0.82, 1)
+sky_horizon_color = Color(0.62, 0.77, 0.92, 1)
+ground_horizon_color = Color(0.62, 0.77, 0.92, 1)
+ground_bottom_color = Color(0.28, 0.22, 0.18, 1)
+
+[sub_resource type="Sky" id="9_sky"]
+sky_material = SubResource("8_sky_mat")
+
+[sub_resource type="Environment" id="10_env"]
+background_mode = 2
+sky = SubResource("9_sky")
+ambient_light_source = 3
+ambient_light_energy = 0.4
+fog_enabled = true
+fog_density = 0.006
+fog_aerial_perspective = 0.5
+
+[sub_resource type="ShaderMaterial" id="11_outer_mat"]
+shader = ExtResource("2_shader")
+shader_parameter/shallow_color = Color(0.05, 0.52, 0.68, 1.0)
+shader_parameter/deep_color = Color(0.01, 0.12, 0.32, 1.0)
+shader_parameter/wave_height = 0.8
+shader_parameter/wave_speed = 1.0
+shader_parameter/wave_scale = 0.25
+shader_parameter/roughness = 0.04
+shader_parameter/bow_wave_depth = 1.8
+shader_parameter/bow_v_angle = 0.4
+shader_parameter/wake_length = 60.0
+shader_parameter/wake_amplitude = 0.5
+shader_parameter/wake_frequency = 0.28
+shader_parameter/ring_frequency = 0.5
+shader_parameter/ring_speed = 10.0
+shader_parameter/ring_decay = 18.0
+shader_parameter/ring_amplitude = 0.0
+shader_parameter/edge_fade_radius = 0.0
+
+[sub_resource type="PlaneMesh" id="12_outer_mesh"]
+size = Vector2(800, 800)
+subdivide_width = 150
+subdivide_depth = 150
+material = SubResource("11_outer_mat")
+
+[sub_resource type="ShaderMaterial" id="13_inner_mat"]
+shader = ExtResource("2_shader")
+shader_parameter/shallow_color = Color(0.05, 0.52, 0.68, 1.0)
+shader_parameter/deep_color = Color(0.01, 0.12, 0.32, 1.0)
+shader_parameter/wave_height = 0.8
+shader_parameter/wave_speed = 1.0
+shader_parameter/wave_scale = 0.25
+shader_parameter/roughness = 0.04
+shader_parameter/bow_wave_depth = 1.8
+shader_parameter/bow_v_angle = 0.4
+shader_parameter/wake_length = 60.0
+shader_parameter/wake_amplitude = 0.5
+shader_parameter/wake_frequency = 0.28
+shader_parameter/ring_frequency = 0.5
+shader_parameter/ring_speed = 10.0
+shader_parameter/ring_decay = 18.0
+shader_parameter/ring_amplitude = 0.25
+shader_parameter/edge_fade_radius = 38.0
+
+[sub_resource type="ShaderMaterial" id="15_inner_mat"]
+shader = ExtResource("2_shader")
+shader_parameter/shallow_color = Color(0.05, 0.52, 0.68, 1.0)
+shader_parameter/deep_color = Color(0.01, 0.12, 0.32, 1.0)
+shader_parameter/wave_height = 0.8
+shader_parameter/wave_speed = 1.0
+shader_parameter/wave_scale = 0.25
+shader_parameter/roughness = 0.04
+shader_parameter/bow_wave_depth = 1.8
+shader_parameter/bow_v_angle = 0.4
+shader_parameter/wake_length = 60.0
+shader_parameter/wake_amplitude = 0.5
+shader_parameter/wake_frequency = 0.28
+shader_parameter/ring_frequency = 0.5
+shader_parameter/ring_speed = 10.0
+shader_parameter/ring_decay = 18.0
+shader_parameter/ring_amplitude = 0.25
+shader_parameter/edge_fade_radius = 38.0
+
+[sub_resource type="PlaneMesh" id="14_inner_mesh"]
+size = Vector2(80, 80)
+subdivide_width = 200
+subdivide_depth = 200
+material = SubResource("13_inner_mat")
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("10_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.766, 0.643, 0, -0.643, 0.766, 0, 20, 0)
+light_energy = 1.5
+shadow_enabled = true
+
+[node name="Ocean" type="MeshInstance3D" parent="."]
+mesh = SubResource("12_outer_mesh")
+script = ExtResource("3_ocean_script")
+
+[node name="InnerOcean" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0)
+mesh = SubResource("14_inner_mesh")
+material_override = SubResource("13_inner_mat")
+script = ExtResource("6_inner_script")
+follow_index = 0
+
+[node name="InnerOcean2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0)
+mesh = SubResource("14_inner_mesh")
+material_override = SubResource("15_inner_mat")
+script = ExtResource("6_inner_script")
+follow_index = 1
+
+[node name="Ship" parent="." instance=ExtResource("1_ship")]
+is_surfboard = false
+is_ai = true
+
+[node name="Surfboard" parent="." instance=ExtResource("1_ship")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 10)
+is_surfboard = true
+is_ai = false
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.906, -0.423, 0, 0.423, 0.906, 0, 8, 15)
+script = ExtResource("4_cam_script")
+target = NodePath("../Surfboard")
+
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("7_debug_script")
+
+
+[node name="Tortuga" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 0, -65)
+script = ExtResource("5_island_script")
+radius = 22.0
+peak_height = 8.0
+num_palms = 4
+island_seed = 1001
+
+[node name="RumCay" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -140, 0, 80)
+script = ExtResource("5_island_script")
+radius = 12.0
+peak_height = 5.0
+num_palms = 2
+island_seed = 2002
+
+[node name="GreatDog" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 215, 0, 180)
+script = ExtResource("5_island_script")
+radius = 32.0
+peak_height = 14.0
+num_palms = 7
+island_seed = 3003
+
+[node name="SkullRock" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -85, 0, -215)
+script = ExtResource("5_island_script")
+radius = 9.0
+peak_height = 20.0
+num_palms = 1
+island_seed = 4004
+
+[node name="PalmCay" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 290, 0, -90)
+script = ExtResource("5_island_script")
+radius = 16.0
+peak_height = 6.0
+num_palms = 6
+island_seed = 5005
+
+[node name="HiddenBay" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -235, 0, 265)
+script = ExtResource("5_island_script")
+radius = 28.0
+peak_height = 10.0
+num_palms = 5
+island_seed = 6006
+
+[node name="VesselManager" type="Node" parent="."]
+script = ExtResource("9_vessel_script")
+camera_path = NodePath("../Camera3D")
+
+[node name="BuoyancyTest" type="Node" parent="."]
+script = ExtResource("8_test_script")

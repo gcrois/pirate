@@ -1,0 +1,65 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/ship_controller.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="2_wood"]
+albedo_color = Color(0.35, 0.22, 0.1, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="3_sail"]
+albedo_color = Color(0.95, 0.9, 0.82, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="4_hull"]
+size = Vector3(3.5, 0.8, 9.0)
+material = SubResource("2_wood")
+
+[sub_resource type="BoxMesh" id="5_cabin"]
+size = Vector3(2.2, 1.4, 2.8)
+material = SubResource("2_wood")
+
+[sub_resource type="BoxMesh" id="6_mast"]
+size = Vector3(0.2, 6.0, 0.2)
+material = SubResource("2_wood")
+
+[sub_resource type="BoxMesh" id="7_yard"]
+size = Vector3(4.0, 0.2, 0.2)
+material = SubResource("2_wood")
+
+[sub_resource type="BoxMesh" id="8_sail"]
+size = Vector3(0.1, 5.0, 3.8)
+material = SubResource("3_sail")
+
+[node name="Ship" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Hull" type="MeshInstance3D" parent="."]
+mesh = SubResource("4_hull")
+
+[node name="Cabin" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -2.0)
+mesh = SubResource("5_cabin")
+
+[node name="Mast" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 1.0)
+mesh = SubResource("6_mast")
+
+[node name="Yard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.4, 1.0)
+mesh = SubResource("7_yard")
+
+[node name="Sail" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.9, 1.1)
+mesh = SubResource("8_sail")
+
+[node name="Bow" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.0)
+
+[node name="Stern" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4.0)
+
+[node name="Port" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 0)
+
+[node name="Starboard" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
