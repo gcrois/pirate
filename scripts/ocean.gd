@@ -1,6 +1,9 @@
 extends Node3D
 
 @export var ocean_material: ShaderMaterial
+@export var wave_drift_scale: float = 0.45
+@export var wake_footprint_meters: float = 64.0
+@export var wake_buffer_resolution: int = 1536
 
 # [steepness, amplitude, dir_degrees, frequency, speed, phase_degrees]
 const _WAVES: Array = [
@@ -90,17 +93,21 @@ func _update_ships_and_wake() -> void:
 		var a = s0 if i == 0 else s1
 		var pos = a.global_position if a else Vector3.ZERO
 		var spd = a._wave_speed if a else 0.0
+		var contact = a._wake_contact if a else 0.0
+		var rel_spd = a._wake_rel_speed if a else 0.0
 		var tex = a._wake_controller.wake_texture if a and a._wake_controller else _neutral_tex
 		var h_len = (a.surfboard_half_length if a.actor_type == "surfboard" else 4.5) if a else 4.5
 		var h_wid = (a.surfboard_half_width if a.actor_type == "surfboard" else 1.75) if a else 1.75
 		var idx = str(i)
 		ocean_material.set_shader_parameter("ship_pos_" + idx, pos)
 		ocean_material.set_shader_parameter("ship_spd_" + idx, spd)
+		ocean_material.set_shader_parameter("ship_contact_" + idx, contact)
+		ocean_material.set_shader_parameter("ship_rel_spd_" + idx, rel_spd)
 		ocean_material.set_shader_parameter("wake_tex_" + idx, tex)
 		ocean_material.set_shader_parameter("ship_len_" + idx, h_len)
 		ocean_material.set_shader_parameter("ship_wid_" + idx, h_wid)
 
-	ocean_material.set_shader_parameter("ocean_size_meters", 100.0)
+	ocean_material.set_shader_parameter("ocean_size_meters", wake_footprint_meters)
 
 
 func get_wave_height(world_pos: Vector3) -> float:
@@ -118,3 +125,25 @@ func get_wave_height(world_pos: Vector3) -> float:
 		var p := phase_deg * TAU / 360.0
 		total += steepness * sin(TAU * frequency * dir.dot(Vector2(x, z)) + speed * (t + p))
 	return total / float(_WAVES.size())
+
+
+func get_wave_velocity_xz(world_pos: Vector3) -> Vector2:
+	var x := world_pos.x
+	var z := world_pos.z
+	var t := _elapsed
+	var drift := Vector2.ZERO
+	for w in _WAVES:
+		var steepness: float = w[0]
+		var amplitude: float = w[1]
+		var dir_deg: float = w[2]
+		var frequency: float = w[3]
+		var speed: float = w[4]
+		var phase_deg: float = w[5]
+		var dir := Vector2(sin(dir_deg * TAU / 360.0), cos(dir_deg * TAU / 360.0))
+		var p := phase_deg * TAU / 360.0
+		var phi: float = TAU * frequency * dir.dot(Vector2(x, z)) + speed * (t + p)
+		var horiz_vel: float = -steepness * amplitude * speed * sin(phi)
+		drift += dir * horiz_vel
+	if _WAVES.is_empty():
+		return Vector2.ZERO
+	return (drift / float(_WAVES.size())) * wave_drift_scale

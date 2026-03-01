@@ -1,0 +1,66 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/seafloor.gd" id="1_seafloor"]
+[ext_resource type="Script" path="res://scripts/diagnostic_camera_look_at.gd" id="2_diag_cam"]
+
+[sub_resource type="ProceduralSkyMaterial" id="1_sky_mat"]
+sky_top_color = Color(0.18, 0.46, 0.82, 1)
+sky_horizon_color = Color(0.62, 0.77, 0.92, 1)
+ground_horizon_color = Color(0.62, 0.77, 0.92, 1)
+ground_bottom_color = Color(0.28, 0.22, 0.18, 1)
+
+[sub_resource type="Sky" id="2_sky"]
+sky_material = SubResource("1_sky_mat")
+
+[sub_resource type="Environment" id="3_env"]
+background_mode = 2
+sky = SubResource("2_sky")
+ambient_light_source = 3
+ambient_light_energy = 0.8
+fog_enabled = false
+
+[sub_resource type="StandardMaterial3D" id="4_marker_mat"]
+albedo_color = Color(0.95, 0.1, 0.1, 1)
+emission_enabled = true
+emission = Color(0.95, 0.1, 0.1, 1)
+emission_energy_multiplier = 0.45
+
+[sub_resource type="SphereMesh" id="5_marker_mesh"]
+radius = 0.8
+height = 1.6
+
+[node name="SeafloorOnly" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("3_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.819152, 0.573576, 0, -0.573576, 0.819152, 0, 30, 0)
+light_energy = 1.4
+shadow_enabled = false
+
+[node name="FillLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, 0, -0.707107, -0.224144, 0.948683, -0.224144, 0.67082, 0.316228, 0.67082, 0, 24, 0)
+light_energy = 0.55
+light_color = Color(0.78, 0.83, 0.92, 1)
+shadow_enabled = false
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(24, 36, 24)
+script = ExtResource("2_diag_cam")
+far = 1200.0
+
+[node name="OriginMarker" type="MeshInstance3D" parent="."]
+mesh = SubResource("5_marker_mesh")
+material_override = SubResource("4_marker_mat")
+
+[node name="Seafloor" type="MeshInstance3D" parent="."]
+script = ExtResource("1_seafloor")
+world_extent = 240.0
+resolution = 128
+base_depth = 0.0
+height_scale = 10.0
+noise_scale = 0.045
+shore_falloff_start = 10000.0
+shore_falloff_end = 11000.0
+island_shelf_lift = 0.0

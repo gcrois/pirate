@@ -1,19 +1,20 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ship.tscn" id="1_ship"]
 [ext_resource type="Script" path="res://scripts/ocean.gd" id="3_ocean_script"]
 [ext_resource type="Script" path="res://scripts/camera_follow.gd" id="4_cam_script"]
 [ext_resource type="Script" path="res://scripts/island.gd" id="5_island_script"]
 [ext_resource type="Script" path="res://scripts/debug_overlay.gd" id="7_debug_script"]
-[ext_resource type="Script" path="res://scripts/test_buoyancy.gd" id="8_test_script"]
 [ext_resource type="Script" path="res://scripts/trade_menu.gd" id="15_trade_menu"]
 [ext_resource type="Script" path="res://scripts/island_name_overlay.gd" id="16_island_labels"]
 [ext_resource type="Script" path="res://scripts/minimap_view.gd" id="17_minimap"]
 [ext_resource type="Script" path="res://scripts/health_bar_overlay.gd" id="18_health_overlay"]
+[ext_resource type="Script" path="res://scripts/floating_crate_manager.gd" id="19_crate_manager"]
+[ext_resource type="Script" path="res://scripts/seafloor.gd" id="20_seafloor"]
 [ext_resource type="Script" path="res://addons/boujie_water_shader/types/ocean.gd" id="10_boujie_ocean"]
 [ext_resource type="Script" path="res://addons/boujie_water_shader/types/camera_follower_3d.gd" id="11_boujie_cam_follow"]
 [ext_resource type="Shader" path="res://shaders/water.gdshader" id="12_water_shader"]
-[ext_resource type="Texture2D" path="res://addons/boujie_water_shader/shader/ocean_albedo_white_highcontrast.png" id="13_albedo_tex"]
+[ext_resource type="Texture2D" path="res://addons/boujie_water_shader/shader/ocean_albedo_1.png" id="13_albedo_tex"]
 [ext_resource type="Texture2D" path="res://addons/boujie_water_shader/shader/foam_2.png" id="14_foam_tex"]
 
 [sub_resource type="ProceduralSkyMaterial" id="8_sky_mat"]
@@ -29,15 +30,20 @@ sky_material = SubResource("8_sky_mat")
 background_mode = 2
 sky = SubResource("9_sky")
 ambient_light_source = 3
-ambient_light_energy = 0.4
+ambient_light_energy = 0.2
 fog_enabled = true
-fog_density = 0.006
+fog_density = 0.0038
 fog_aerial_perspective = 0.5
 
 [sub_resource type="ShaderMaterial" id="11_water_mat"]
 shader = ExtResource("12_water_shader")
-shader_parameter/albedo = Color(0.05, 0.52, 0.68, 0.62)
-shader_parameter/albedo_fresnel = Color(0.08, 0.38, 0.72, 0.96)
+shader_parameter/albedo = Color(0.05, 0.52, 0.68, 1)
+shader_parameter/albedo_fresnel = Color(0.08, 0.38, 0.72, 1)
+shader_parameter/water_opacity = 0.6
+shader_parameter/shallow_water_alpha = 1.0
+shader_parameter/deep_water_alpha = 1.0
+shader_parameter/depth_absorption = 3.2
+shader_parameter/depth_color_strength = 0.22
 shader_parameter/texture_albedo = ExtResource("13_albedo_tex")
 shader_parameter/specular = 0.9
 shader_parameter/roughness = 0.04
@@ -91,8 +97,18 @@ environment = SubResource("10_env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.766, 0.643, 0, -0.643, 0.766, 0, 20, 0)
-light_energy = 1.5
+light_energy = 2.0
 shadow_enabled = true
+directional_shadow_mode = 2
+directional_shadow_blend_splits = true
+directional_shadow_fade_start = 0.82
+directional_shadow_max_distance = 550.0
+directional_shadow_split_1 = 0.08
+directional_shadow_split_2 = 0.2
+directional_shadow_split_3 = 0.45
+shadow_blur = 0.6
+shadow_bias = 0.01
+shadow_normal_bias = 0.08
 
 [node name="Ocean" type="Node3D" parent="."]
 script = ExtResource("3_ocean_script")
@@ -111,6 +127,23 @@ script = ExtResource("11_boujie_cam_follow")
 target_path = NodePath("..")
 snap = true
 snap_unit = 8.0
+
+[node name="Seafloor" type="MeshInstance3D" parent="."]
+script = ExtResource("20_seafloor")
+world_extent = 650.0
+resolution = 220
+base_depth = -4.8
+height_scale = 3.0
+noise_scale = 0.011
+detail_height_scale = 1.1
+detail_noise_scale = 0.065
+shore_falloff_start = 360.0
+shore_falloff_end = 620.0
+world_edge_extra_depth = 20.0
+island_shelf_inner_scale = 0.95
+island_shelf_radius_scale = 1.24
+island_shelf_lift = 4.8
+island_shelf_noise_strength = 0.55
 
 [node name="Trader" parent="." instance=ExtResource("1_ship")]
 actor_name = "Red Jack"
@@ -159,14 +192,17 @@ layer = 14
 [node name="Map" type="Control" parent="Minimap"]
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -332.0
-offset_top = 16.0
+offset_left = -400.0
+offset_top = 12.0
 offset_right = -16.0
-offset_bottom = 248.0
+offset_bottom = 396.0
 script = ExtResource("17_minimap")
 
 [node name="HealthBars" type="CanvasLayer" parent="."]
 script = ExtResource("18_health_overlay")
+
+[node name="FloatingCrates" type="Node" parent="."]
+script = ExtResource("19_crate_manager")
 
 [node name="Tortuga" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 0, -65)
@@ -215,6 +251,3 @@ radius = 28.0
 peak_height = 10.0
 num_palms = 5
 island_seed = 6006
-
-[node name="BuoyancyTest" type="Node" parent="."]
-script = ExtResource("8_test_script")

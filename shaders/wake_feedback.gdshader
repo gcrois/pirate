@@ -5,6 +5,8 @@ uniform sampler2D screen_buffer : hint_screen_texture, repeat_disable, filter_li
 uniform float fade_speed = 0.000;
 uniform float dynamic_fade = 0.0; // Extra fade controlled by velocity
 uniform float spread_distance = 0.0001;
+uniform vec2 texel_size = vec2(0.001, 0.001);
+uniform float blur_radius_texels = 1.2;
 
 // The exact offset representing the ship's movement this frame
 uniform vec2 movement_offset = vec2(0.0);
@@ -21,16 +23,25 @@ vec4 safe_sample(sampler2D tex, vec2 uv) {
 void fragment() {
     // We shift all of our UV lookups by the ship's movement
     vec2 shifted_uv = SCREEN_UV + movement_offset;
+    vec2 blur = max(vec2(spread_distance), texel_size * blur_radius_texels);
     
-    // 1. Sample the current pixel and its neighbors based on the SHIFTED coordinates
+    // 1. Sample the current pixel and neighbors with a small Gaussian-ish kernel
     vec4 center = safe_sample(screen_buffer, shifted_uv);
-    vec4 north  = safe_sample(screen_buffer, shifted_uv + vec2(0.0, -spread_distance));
-    vec4 south  = safe_sample(screen_buffer, shifted_uv + vec2(0.0, spread_distance));
-    vec4 east   = safe_sample(screen_buffer, shifted_uv + vec2(spread_distance, 0.0));
-    vec4 west   = safe_sample(screen_buffer, shifted_uv + vec2(-spread_distance, 0.0));
+    vec4 north  = safe_sample(screen_buffer, shifted_uv + vec2(0.0, -blur.y));
+    vec4 south  = safe_sample(screen_buffer, shifted_uv + vec2(0.0, blur.y));
+    vec4 east   = safe_sample(screen_buffer, shifted_uv + vec2(blur.x, 0.0));
+    vec4 west   = safe_sample(screen_buffer, shifted_uv + vec2(-blur.x, 0.0));
+    vec4 ne     = safe_sample(screen_buffer, shifted_uv + vec2(blur.x, -blur.y));
+    vec4 nw     = safe_sample(screen_buffer, shifted_uv + vec2(-blur.x, -blur.y));
+    vec4 se     = safe_sample(screen_buffer, shifted_uv + vec2(blur.x, blur.y));
+    vec4 sw     = safe_sample(screen_buffer, shifted_uv + vec2(-blur.x, blur.y));
     
-    // 2. Average them together to spread the wake
-    vec4 blurred = (center + north + south + east + west) / 5.0;
+    // 2. Weighted blur keeps detail while reducing chunky artifacts
+    vec4 blurred = (
+        center * 4.0
+        + (north + south + east + west) * 2.0
+        + (ne + nw + se + sw) * 1.0
+    ) / 16.0;
     
     // 3. Fade toward perfectly flat water (Value 0.5)
     vec4 neutral_water = vec4(0.5, 0.5, 0.5, 1.0);

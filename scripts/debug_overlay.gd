@@ -10,7 +10,7 @@ var _sample_counter: int = 0
 
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_D:
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_P:
 		_is_debug_visible = not _is_debug_visible
 		for l in _labels.values():
 			l.visible = _is_debug_visible
@@ -102,10 +102,30 @@ func _process(_delta: float) -> void:
 			wave_h = ocean.get_wave_height(pos)
 		var y_offset = pos.y - wave_h
 
+		var combat_line_1 := ""
+		var combat_line_2 := ""
+		if actor.has_method("get_combat_debug"):
+			var combat_any = actor.call("get_combat_debug")
+			if combat_any is Dictionary:
+				var combat: Dictionary = combat_any
+				var target_name: String = str(combat.get("target_name", "-"))
+				var target_side: String = str(combat.get("target_side", "none"))
+				var profile: String = str(combat.get("profile", "-"))
+				var in_range: bool = bool(combat.get("in_range", false))
+				var target_dist: float = float(combat.get("target_distance", -1.0))
+				var dist_txt: String = "--" if target_dist < 0.0 else "%.1f" % target_dist
+				var range_txt: String = "IN" if in_range else "OUT"
+				var reload_port: float = float(combat.get("reload_port", 0.0))
+				var reload_starboard: float = float(combat.get("reload_starboard", 0.0))
+				combat_line_1 = "Tgt: %s  Dist: %s  Side: %s  %s\n" % [target_name, dist_txt, target_side, range_txt]
+				combat_line_2 = "Shot: %s  Rld P/S: %.2f / %.2f\n" % [profile, reload_port, reload_starboard]
+
 		l.text = (
 			"[%s]\n" % label_name
 			+ "Pos: %6.1f, %4.1f, %6.1f\n" % [pos.x, pos.y, pos.z]
 			+ "WaterH: %4.1f  Offset: %4.2f\n" % [wave_h, y_offset]
+			+ combat_line_1
+			+ combat_line_2
 			+ "Spd: %6.1f u/s\n" % spd
 			+ "Hdg: %6.1f deg\n" % heading
 		)

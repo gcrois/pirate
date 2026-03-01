@@ -1,6 +1,8 @@
 extends Node
 
 var _frame_count = 0
+@export var auto_quit: bool = false
+@export var log_interval_frames: int = 180
 
 
 func _ready() -> void:
@@ -19,6 +21,8 @@ func _run_all_tests() -> void:
 	all_pass = _assert("Ocean node exists", ocean != null) and all_pass
 	if ocean == null:
 		print("[ABORT] Cannot continue without ocean node\n")
+		if auto_quit:
+			get_tree().quit(1)
 		return
 
 	all_pass = _assert("Ocean has get_wave_height()", ocean.has_method("get_wave_height")) and all_pass
@@ -79,6 +83,9 @@ func _run_all_tests() -> void:
 		print("║           SOME TESTS FAILED ✗                ║")
 	print("╚══════════════════════════════════════════════╝\n")
 
+	if auto_quit:
+		get_tree().quit(0 if all_pass else 1)
+
 
 func _assert(name: String, condition: bool) -> bool:
 	if condition:
@@ -89,8 +96,12 @@ func _assert(name: String, condition: bool) -> bool:
 
 
 func _process(_delta: float) -> void:
+	if auto_quit:
+		return
+	if log_interval_frames <= 0:
+		return
 	_frame_count += 1
-	if _frame_count % 180 != 0:
+	if _frame_count % log_interval_frames != 0:
 		return
 
 	var ocean = get_tree().get_first_node_in_group("ocean")

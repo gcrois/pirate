@@ -1,0 +1,39 @@
+name: Quality Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install GDScript Tooling
+        run: pip install "gdtoolkit==4.*"
+
+      - name: Check GDScript Formatting
+        run: gdformat --check scripts
+
+      - name: Lint GDScript
+        run: gdlint scripts
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.5.0
+          use-dotnet: false
+
+      - name: Run Buoyancy Smoke Test
+        run: godot --headless --path . res://scenes/diagnostics/buoyancy_smoke.tscn

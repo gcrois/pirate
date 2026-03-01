@@ -130,6 +130,8 @@ func _add_mesh_as_node(mesh: Mesh, new_name: String, pos: Vector3 = Vector3.ZERO
 	mi.name = new_name
 	mi.mesh = mesh
 	mi.position = pos
+	# Water should not cast opaque shadows onto underwater geometry.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.set_surface_override_material(0, material)
 	add_child(mi)
 
